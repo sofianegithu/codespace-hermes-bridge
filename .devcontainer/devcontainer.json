@@ -1,0 +1,20 @@
+{
+  "name": "Hermes Telegram Bridge",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/cloudflared:1": {}
+  },
+  "postCreateCommand": "bash -lc 'python3 -m venv .venv && source .venv/bin/activate && pip install --quiet --upgrade pip && pip install --quiet -r requirements.txt && echo \"✅ ready. Copy .env.example to .env, fill in your tokens, then ./scripts/start.sh\"'",
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {
+      "label": "Bridge (internal)",
+      "onAutoForward": "silent"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-python.vscode-pylance"]
+    }
+  }
+}
