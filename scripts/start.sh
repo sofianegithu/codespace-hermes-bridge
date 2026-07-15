@@ -65,7 +65,7 @@ fi
 
 # ── 4. start tunnel in background ────────────────────────────────────────────
 echo "🌐 Starting Cloudflare quick-tunnel on port ${PORT:-8080}…"
-python -m app.tunnel > /tmp/tunnel.url 2> /tmp/tunnel.err &
+python -u -m app.tunnel > /tmp/tunnel.url 2> /tmp/tunnel.err &
 TUNNEL_PID=$!
 trap "echo '🛑 stopping…'; kill $TUNNEL_PID 2>/dev/null || true" EXIT INT TERM
 

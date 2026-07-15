@@ -87,7 +87,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     tunnel = CloudflareTunnel(config.PORT)
     url = tunnel.start()
-    print(url)
+    print(url, flush=True)
     # Keep alive until killed
     try:
         tunnel._proc.wait()  # type: ignore[union-attr]
