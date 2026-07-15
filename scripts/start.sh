@@ -41,6 +41,8 @@ fi
 source .venv/bin/activate
 
 # ── 3. cloudflared ────────────────────────────────────────────────────────────
+# Prefer a local bin/ copy (works on Alpine where dpkg/apt are absent).
+export PATH="$PWD/bin:$PATH"
 if ! command -v cloudflared >/dev/null 2>&1; then
   echo "📦 Installing cloudflared…"
   ARCH=$(uname -m)
@@ -49,8 +51,16 @@ if ! command -v cloudflared >/dev/null 2>&1; then
     aarch64) CFEARCH=arm64 ;;
     *) echo "❌ Unsupported arch: $ARCH"; exit 1 ;;
   esac
-  curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CFEARCH}.deb" -o /tmp/cf.deb
-  sudo dpkg -i /tmp/cf.deb || apt-get install -f -y
+  mkdir -p bin
+  # Static binary works on Debian AND Alpine (no package manager needed).
+  if curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CFEARCH}" -o bin/cloudflared; then
+    chmod +x bin/cloudflared
+    export PATH="$PWD/bin:$PATH"
+  else
+    # Fallback to distro package if curl failed (Debian/Ubuntu only).
+    curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CFEARCH}.deb" -o /tmp/cf.deb
+    sudo dpkg -i /tmp/cf.deb || apt-get install -f -y
+  fi
 fi
 
 # ── 4. start tunnel in background ────────────────────────────────────────────
