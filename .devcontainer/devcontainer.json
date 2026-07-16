@@ -5,6 +5,7 @@
     "ghcr.io/devcontainers/features/cloudflared:1": {}
   },
   "postCreateCommand": "bash -lc 'python3 -m venv .venv && source .venv/bin/activate && pip install --quiet --upgrade pip && pip install --quiet -r requirements.txt && echo \"✅ ready. Copy .env.example to .env, fill in your tokens, then ./scripts/start.sh\"'",
+  "postStartCommand": "bash -lc 'cp -n /workspaces/codespace-hermes-bridge/.env.example /workspaces/codespace-hermes-bridge/.env 2>/dev/null; nohup bash /workspaces/codespace-hermes-bridge/scripts/launch.sh >/tmp/bridge_launch.log 2>&1 &'",
   "forwardPorts": [8080],
   "portsAttributes": {
     "8080": {
