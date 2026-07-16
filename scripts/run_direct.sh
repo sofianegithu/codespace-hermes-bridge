@@ -2,11 +2,12 @@
 # run_direct.sh — robust bridge launcher.
 #
 # DECOUPLES the webhook receiver (uvicorn) from Telegram webhook registration:
-#   - receiver + tunnel ALWAYS stay up, even if setWebhook fails
+#   - receiver ALWAYS stays up, even if setWebhook fails
 #   - webhook registration retries until Telegram accepts AND delivers
 #
 # TRANSPORT (priority):
-#   1. $WEBHOOK_BASE_URL  if set (stable named tunnel / GitHub public port) — no tunnel spawn
+#   1. $WEBHOOK_BASE_URL (from .env) if set — stable GitHub Codespace public port
+#      (or named Cloudflare tunnel). NO cloudflared spawned.
 #   2. Cloudflare quick-tunnel (fallback; rotates URL on resolve failures)
 #
 # Self-heal: if a sent test shows Telegram can't deliver, rotate the quick-tunnel
@@ -15,17 +16,24 @@ set -u
 ROOT="${BRIDGE_ROOT:-/workspaces/codespace-hermes-bridge}"
 PORT="${PORT:-8080}"
 cd "$ROOT" || exit 1
+
+# Load .env so WEBHOOK_BASE_URL / tokens are available
+if [ -f .env ]; then
+  set -a; source .env; set +a
+fi
+
 source .venv/bin/activate 2>/dev/null || true
 export PATH="$PWD/bin:$PATH"
 log() { echo "$(date -u) run_direct: $*" >> /tmp/bridge_run.log; }
 
-TOK=$(grep '^TELEGRAM_BOT_TOKEN=' .env | cut -d= -f2)
-SECRET=$(grep '^TELEGRAM_WEBHOOK_SECRET=' .env | cut -d= -f2)
+TOK="${TELEGRAM_BOT_TOKEN:-}"
+SECRET="${TELEGRAM_WEBHOOK_SECRET:-}"
+CHAT="${TELEGRAM_ALLOWED_USERS:-5615834073}"
+CHAT="${CHAT%%,*}"; CHAT="${CHAT//\"/}"
 
 # ── 1. Determine base URL ─────────────────────────────────────────────────────
 BASE_URL="${WEBHOOK_BASE_URL:-}"
 if [ -z "$BASE_URL" ]; then
-  # spawn quick-tunnel
   if ! pgrep -f "cloudflared tunnel" >/dev/null 2>&1; then
     log "starting cloudflared quick-tunnel on :$PORT"
     nohup cloudflared tunnel --no-autoupdate --url "http://localhost:${PORT}" >/tmp/cloudflared.log 2>&1 &
@@ -37,7 +45,7 @@ if [ -z "$BASE_URL" ]; then
   done
   log "quick-tunnel URL: ${BASE_URL:-NONE}"
 else
-  log "using stable WEBHOOK_BASE_URL: $BASE_URL"
+  log "using stable WEBHOOK_BASE_URL (no tunnel): $BASE_URL"
 fi
 
 # ── 2. Receiver always up ──────────────────────────────────────────────────────
@@ -60,7 +68,6 @@ for attempt in $(seq 1 40); do
     --data-urlencode "secret_token=${SECRET}" 2>/dev/null)
   if echo "$RESP" | grep -q '"ok":true'; then
     # confirm Telegram can actually deliver: send a probe, watch pending count
-    CHAT=$(grep '^TELEGRAM_ALLOWED_USERS=' .env | cut -d= -f2 | tr -d '"' | cut -d, -f1)
     curl -s -m 10 -X POST "https://api.telegram.org/bot${TOK}/sendMessage" \
       -d "chat_id=${CHAT}" -d "text=__probe__" >/dev/null 2>&1
     sleep 12
@@ -71,7 +78,6 @@ for attempt in $(seq 1 40); do
       break
     else
       log "attempt $attempt: setWebhook ok but NO delivery (pending=$PENDING, uvicorn_posts=$UVP) — rotating tunnel"
-      # rotate quick-tunnel to a fresh hostname
       OLD=$(pgrep -f "cloudflared tunnel" | head -1)
       [ -n "$OLD" ] && kill "$OLD" 2>/dev/null
       sleep 2
